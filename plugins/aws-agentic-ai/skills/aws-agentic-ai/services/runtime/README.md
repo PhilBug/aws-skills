@@ -46,7 +46,7 @@ if __name__ == "__main__":
     app.run()  # Auto-listens on port 8080, auto-generates /ping and /invocations
 ```
 
-> See [`scripts/runtime-fastapi-template.py`](../../scripts/runtime-fastapi-template.py) for a FastAPI-based alternative with MCPClient and async task tracking.
+> See [`scripts/runtime-fastapi-template.py`](../../scripts/runtime-fastapi-template.py) for a FastAPI-based alternative with MCPClient integration.
 
 **Step 3: Create AgentCore Runtime**
 ```bash

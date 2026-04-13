@@ -123,10 +123,10 @@ Production-ready templates in [`scripts/`](scripts/) for common deployment patte
 | Script | Protocol | Description |
 |--------|----------|-------------|
 | [`Dockerfile.runtime-template`](scripts/Dockerfile.runtime-template) | — | ARM64 multi-stage Docker build for AgentCore Runtime |
-| [`runtime-fastapi-template.py`](scripts/runtime-fastapi-template.py) | HTTP | FastAPI Runtime with SSE streaming, MCPClient, async task tracking |
+| [`runtime-fastapi-template.py`](scripts/runtime-fastapi-template.py) | HTTP | FastAPI Runtime with SSE streaming and MCPClient |
 | [`mcp-server-template.py`](scripts/mcp-server-template.py) | MCP | MCP Server with Streamable HTTP transport |
 | [`a2a-server-template.py`](scripts/a2a-server-template.py) | A2A | A2A Server with Agent Card discovery |
-| [`agui-server-template.py`](scripts/agui-server-template.py) | AG-UI | AG-UI Server with CopilotKit-compatible event stream |
+| [`agui-server-template.py`](scripts/agui-server-template.py) | AG-UI | AG-UI Server with standard AG-UI event stream |
 | [`gateway-custom-resource-lambda.py`](scripts/gateway-custom-resource-lambda.py) | — | CDK Custom Resource Lambda for Gateway lifecycle |
 
 ## Cross-Service Resources

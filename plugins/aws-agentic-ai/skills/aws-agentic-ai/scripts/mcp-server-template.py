@@ -4,6 +4,10 @@
 Deploys as an MCP protocol Runtime on AgentCore.
 Port 8000, endpoint /mcp, Streamable HTTP transport.
 
+Note: FastMCP handles the /mcp endpoint and MCP protocol automatically.
+AgentCore's /ping health check is expected on port 8000 — verify that
+FastMCP serves it, or add a custom health endpoint if needed.
+
 Usage:
     # Local development
     python mcp-server-template.py

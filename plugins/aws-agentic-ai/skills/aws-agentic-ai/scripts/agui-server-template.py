@@ -9,7 +9,7 @@ may change. Refer to ag-ui.com and PyPI for latest versions.
 
 Usage:
     # Local development
-    pip install fastapi uvicorn ag-ui-strands
+    pip install fastapi uvicorn ag-ui-strands strands-agents
     python agui-server-template.py
 
     # Deploy to AgentCore
@@ -17,18 +17,24 @@ Usage:
     agentcore deploy
 """
 
+import logging
+import os
+
 import uvicorn
 from ag_ui.core import RunAgentInput
 from ag_ui.encoder import EventEncoder
 from ag_ui_strands import StrandsAgent
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from strands import Agent
 from strands.models.bedrock import BedrockModel
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 model = BedrockModel(
-    model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-    region_name="us-west-2",
+    model_id=os.environ.get("MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+    region_name=os.environ.get("AWS_REGION", "us-west-2"),
 )
 
 strands_agent = Agent(
@@ -50,10 +56,18 @@ async def invocations(input_data: dict, request: Request):
     accept_header = request.headers.get("accept")
     encoder = EventEncoder(accept=accept_header)
 
-    async def event_generator():
+    try:
         run_input = RunAgentInput(**input_data)
-        async for event in agui_agent.run(run_input):
-            yield encoder.encode(event)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid input: {e}")
+
+    async def event_generator():
+        try:
+            async for event in agui_agent.run(run_input):
+                yield encoder.encode(event)
+        except Exception:
+            logger.exception("Error during AG-UI streaming")
+            raise
 
     return StreamingResponse(
         event_generator(),

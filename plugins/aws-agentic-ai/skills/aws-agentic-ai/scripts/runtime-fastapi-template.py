@@ -7,14 +7,22 @@ A minimal FastAPI-based AgentCore Runtime with:
 - MCPClient lifecycle management (startup/shutdown)
 - Per-request Agent creation
 
+Environment Variables:
+    MODEL_ID: Bedrock model identifier (default: us.anthropic.claude-sonnet-4-5-20250929-v1:0)
+    MCP_SERVER_URL: Streamable HTTP URL for MCP server (optional, empty = no MCP tools)
+    SYSTEM_PROMPT: Agent system prompt (default: "You are a helpful AI assistant.")
+    AWS_REGION: AWS region for Bedrock and CORS (default: us-east-1)
+
 Usage:
-    # Local development
-    uvicorn runtime-fastapi-template:app --host 0.0.0.0 --port 8080 --reload
+    # Local development (rename file to use underscores for Python import)
+    cp runtime-fastapi-template.py runtime_fastapi_template.py
+    uvicorn runtime_fastapi_template:app --host 0.0.0.0 --port 8080 --reload
 
     # Deploy to AgentCore via CDK (see agentcore-runtime-deploy.md)
 """
 
 import json
+import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -26,6 +34,9 @@ from pydantic import BaseModel
 from strands import Agent
 from strands.models.bedrock import BedrockModel
 from strands.tools.mcp import MCPClient
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 MODEL_ID = os.environ.get("MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
@@ -63,12 +74,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Initialize MCPClient at startup, close on shutdown."""
     global _mcp_client
     if MCP_SERVER_URL:
-        from mcp.client.streamable_http import streamable_http_client
+        try:
+            from mcp.client.streamable_http import streamable_http_client
 
-        _mcp_client = MCPClient(lambda: streamable_http_client(url=MCP_SERVER_URL))
+            _mcp_client = MCPClient(lambda: streamable_http_client(url=MCP_SERVER_URL))
+            logger.info(f"MCPClient initialized for {MCP_SERVER_URL}")
+        except ImportError:
+            logger.error("mcp package not installed. Install with: pip install mcp")
+            raise
+        except Exception:
+            logger.exception(f"Failed to initialize MCPClient for URL: {MCP_SERVER_URL}")
+            raise
     yield
     if _mcp_client:
-        _mcp_client.close()
+        try:
+            await _mcp_client.close()
+        except Exception:
+            logger.exception("Error closing MCPClient")
 
 
 app = FastAPI(lifespan=lifespan)
@@ -106,9 +128,10 @@ async def invocations(request: ChatRequest):
                     text = event.get("data", "")
                     if text:
                         yield f"data: {json.dumps({'type': 'text-delta', 'delta': text})}\n\n"
+            yield f"data: {json.dumps({'type': 'finish', 'session_id': request.id})}\n\n"
         except Exception as e:
+            logger.exception(f"Streaming error for session {request.id}")
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-        yield f"data: {json.dumps({'type': 'finish', 'session_id': request.id})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

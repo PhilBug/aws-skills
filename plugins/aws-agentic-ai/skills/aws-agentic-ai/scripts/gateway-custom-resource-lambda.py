@@ -42,9 +42,10 @@ def handler(event, context):
 
         physical_id = result.get("GatewayId", event.get("PhysicalResourceId", ""))
         cfnresponse.send(event, context, cfnresponse.SUCCESS, result, physical_id)
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+    except Exception:
+        logger.exception(f"Custom resource {request_type} failed")
+        physical_id = event.get("PhysicalResourceId", f"failed-{context.aws_request_id}")
+        cfnresponse.send(event, context, cfnresponse.FAILED, {}, physical_id)
 
 
 def handle_create():
@@ -62,22 +63,27 @@ def handle_create():
     gateway_id = response["gatewayId"]
     logger.info(f"Created Gateway: {gateway_id}")
 
-    wait_for_gateway_available(gateway_id)
+    try:
+        wait_for_gateway_available(gateway_id)
 
-    target_response = client.create_gateway_target(
-        gatewayIdentifier=gateway_id,
-        name=f"{gateway_name}-target",
-        targetConfiguration={
-            "lambdaTargetConfiguration": {
-                "lambdaArn": target_lambda_arn,
-                "roleArn": gateway_role_arn,
-            }
-        },
-        schemaConfiguration={
-            "s3": {"uri": schema_s3_uri},
-        },
-        description="Lambda target",
-    )
+        target_response = client.create_gateway_target(
+            gatewayIdentifier=gateway_id,
+            name=f"{gateway_name}-target",
+            targetConfiguration={
+                "lambdaTargetConfiguration": {
+                    "lambdaArn": target_lambda_arn,
+                    "roleArn": gateway_role_arn,
+                }
+            },
+            schemaConfiguration={
+                "s3": {"uri": schema_s3_uri},
+            },
+            description="Lambda target",
+        )
+    except Exception:
+        logger.exception(f"Failed after creating Gateway {gateway_id}, cleaning up")
+        _delete_gateway(gateway_id)
+        raise
 
     return {
         "GatewayId": gateway_id,
@@ -90,14 +96,21 @@ def handle_update(event):
     old_gateway_id = event.get("PhysicalResourceId", "")
     result = handle_create()
     if old_gateway_id:
-        _delete_gateway(old_gateway_id)
+        try:
+            _delete_gateway(old_gateway_id)
+        except Exception:
+            logger.exception(
+                f"Failed to delete old Gateway {old_gateway_id} during update. "
+                f"New Gateway {result.get('GatewayId')} created successfully. "
+                f"Manual cleanup of old Gateway may be required."
+            )
     return result
 
 
 def handle_delete(event):
     """Delete Gateway and all its targets."""
     gateway_id = event.get("PhysicalResourceId", "")
-    if not gateway_id:
+    if not gateway_id or gateway_id.startswith("failed-"):
         return {"Status": "Nothing to delete"}
     _delete_gateway(gateway_id)
     return {"Status": "Deleted"}
@@ -108,10 +121,13 @@ def _delete_gateway(gateway_id):
     try:
         targets = client.list_gateway_targets(gatewayIdentifier=gateway_id)
         for target in targets.get("gatewayTargets", []):
-            client.delete_gateway_target(
-                gatewayIdentifier=gateway_id,
-                targetIdentifier=target["targetId"],
-            )
+            try:
+                client.delete_gateway_target(
+                    gatewayIdentifier=gateway_id,
+                    targetIdentifier=target["targetId"],
+                )
+            except client.exceptions.ResourceNotFoundException:
+                pass
         client.delete_gateway(gatewayIdentifier=gateway_id)
         logger.info(f"Deleted Gateway: {gateway_id}")
     except client.exceptions.ResourceNotFoundException:
@@ -122,12 +138,20 @@ def wait_for_gateway_available(gateway_id, timeout=300, interval=10):
     """Poll until Gateway reaches AVAILABLE status."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        response = client.get_gateway(gatewayIdentifier=gateway_id)
+        try:
+            response = client.get_gateway(gatewayIdentifier=gateway_id)
+        except Exception:
+            logger.warning(f"Transient error polling Gateway {gateway_id}", exc_info=True)
+            time.sleep(interval)
+            continue
         status = response.get("status", "")
         if status == "AVAILABLE":
             return
         if status in ("FAILED", "DELETED"):
-            raise RuntimeError(f"Gateway {gateway_id} reached terminal status: {status}")
+            reasons = response.get("failureReasons", [])
+            raise RuntimeError(
+                f"Gateway {gateway_id} reached terminal status: {status}. Reasons: {reasons}"
+            )
         logger.info(f"Gateway {gateway_id} status: {status}, waiting...")
         time.sleep(interval)
     raise TimeoutError(f"Gateway {gateway_id} not available after {timeout}s")

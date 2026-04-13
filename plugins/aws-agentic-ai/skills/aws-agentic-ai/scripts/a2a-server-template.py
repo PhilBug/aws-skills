@@ -9,7 +9,7 @@ Usage:
     python a2a-server-template.py
 
     # Deploy to AgentCore
-    pip install strands-agents[a2a] bedrock-agentcore strands-agents-tools
+    pip install strands-agents[a2a] strands-agents-tools fastapi uvicorn
     agentcore configure -e a2a-server-template.py --protocol A2A
     agentcore deploy
 """
