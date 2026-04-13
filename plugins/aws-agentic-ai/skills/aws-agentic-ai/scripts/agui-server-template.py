@@ -22,7 +22,7 @@ from ag_ui.core import RunAgentInput
 from ag_ui.encoder import EventEncoder
 from ag_ui_strands import StrandsAgent
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from strands import Agent
 from strands.models.bedrock import BedrockModel
 
@@ -63,7 +63,7 @@ async def invocations(input_data: dict, request: Request):
 
 @app.get("/ping")
 async def ping():
-    return JSONResponse({"status": "Healthy"})
+    return {"status": "Healthy"}
 
 
 if __name__ == "__main__":

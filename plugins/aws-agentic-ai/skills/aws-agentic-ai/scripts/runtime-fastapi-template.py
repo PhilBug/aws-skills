@@ -3,9 +3,9 @@
 
 A minimal FastAPI-based AgentCore Runtime with:
 - /invocations endpoint (SSE streaming)
-- /ping health check with async task tracking
+- /ping health check
 - MCPClient lifecycle management (startup/shutdown)
-- Per-request Agent with session_manager
+- Per-request Agent creation
 
 Usage:
     # Local development
@@ -16,13 +16,15 @@ Usage:
 
 import json
 import os
-import threading
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from strands import Agent
+from strands.models.bedrock import BedrockModel
 from strands.tools.mcp import MCPClient
 
 # --- Configuration ---
@@ -32,7 +34,7 @@ SYSTEM_PROMPT = os.environ.get("SYSTEM_PROMPT", "You are a helpful AI assistant.
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 
-# --- Request/Response Models ---
+# --- Request Models ---
 class MessagePart(BaseModel):
     type: str = "text"
     text: str
@@ -51,8 +53,25 @@ class ChatRequest(BaseModel):
     messages: list[Message] = []
 
 
-# --- App Setup ---
-app = FastAPI()
+# --- Module-level singletons (created once, reused across requests) ---
+model = BedrockModel(model_id=MODEL_ID, region_name=AWS_REGION)
+_mcp_client: MCPClient | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    """Initialize MCPClient at startup, close on shutdown."""
+    global _mcp_client
+    if MCP_SERVER_URL:
+        from mcp.client.streamable_http import streamable_http_client
+
+        _mcp_client = MCPClient(lambda: streamable_http_client(url=MCP_SERVER_URL))
+    yield
+    if _mcp_client:
+        _mcp_client.close()
+
+
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[f"https://bedrock-agentcore.{AWS_REGION}.amazonaws.com"],
@@ -61,70 +80,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Async Task Tracking ---
-_active_tasks: set[int] = set()
-_task_lock = threading.Lock()
-_task_counter = 0
-
-# --- MCP Client (process-level, created at startup) ---
-_mcp_client: MCPClient | None = None
-
-
-def add_task() -> int:
-    """Register an async background task. /ping returns HealthyBusy while tasks are active."""
-    global _task_counter
-    with _task_lock:
-        _task_counter += 1
-        _active_tasks.add(_task_counter)
-        return _task_counter
-
-
-def complete_task(task_id: int):
-    """Mark an async task as complete."""
-    with _task_lock:
-        _active_tasks.discard(task_id)
-
-
-@app.on_event("startup")
-async def startup():
-    """Initialize MCPClient at startup (lazy connection on first tool call)."""
-    global _mcp_client
-    if MCP_SERVER_URL:
-        from mcp.client.streamable_http import streamable_http_client
-
-        _mcp_client = MCPClient(lambda: streamable_http_client(url=MCP_SERVER_URL))
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    """Close MCPClient on process shutdown."""
-    if _mcp_client:
-        await _mcp_client.close()
-
 
 @app.get("/ping")
 def ping():
-    """Health check. Returns HealthyBusy if async tasks are running."""
-    status = "HealthyBusy" if _active_tasks else "Healthy"
-    return {"status": status}
+    return {"status": "Healthy"}
 
 
 @app.post("/invocations")
 async def invocations(request: ChatRequest):
-    """Main chat endpoint. Creates a per-request Agent and streams SSE response."""
-    user_message = ""
-    if request.messages:
-        user_message = request.messages[-1].content
+    """Create a per-request Agent and stream SSE response."""
+    user_message = request.messages[-1].content if request.messages else ""
 
-    # Build tool list
-    tools = []
-    if _mcp_client:
-        tools.append(_mcp_client)
-
-    # Create per-request Agent
-    from strands.models.bedrock import BedrockModel
-
-    model = BedrockModel(model_id=MODEL_ID, region_name=AWS_REGION)
+    tools: list = [_mcp_client] if _mcp_client else []
     agent = Agent(
         system_prompt=SYSTEM_PROMPT,
         model=model,

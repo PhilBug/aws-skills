@@ -45,7 +45,7 @@ app = FastAPI()
 
 @app.get("/ping")
 def ping():
-    return {"status": "healthy"}
+    return {"status": "Healthy"}
 
 
 app.mount("/", a2a_server.to_fastapi_app())
