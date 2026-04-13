@@ -107,6 +107,28 @@ Each service has comprehensive documentation in its respective directory:
 - [`services/browser/README.md`](services/browser/README.md)
 - [`services/observability/README.md`](services/observability/README.md)
 
+### Advanced Runtime & OAuth References
+
+Deep-dive reference documentation for Runtime internals, deployment, OAuth integration, and communication protocols. Read these when building production Runtime deployments or configuring OAuth authentication:
+
+- **OAuth Integration**: [`references/agentcore-oauth-integration.md`](references/agentcore-oauth-integration.md) - Three-layer OAuth architecture (Inbound JWT, Outbound Credential Provider, Gateway OAuth), Cognito configuration, supported IdPs, end-to-end CDK examples
+- **Runtime Core Mechanisms**: [`references/agentcore-runtime-core.md`](references/agentcore-runtime-core.md) - Container contract, MicroVM Session model, Agent lifecycle (per-request vs per-session), tool integration (MCP/HTTP), startup flow
+- **Runtime Deployment & Operations**: [`references/agentcore-runtime-deploy.md`](references/agentcore-runtime-deploy.md) - CDK deployment (L1/L2 constructs), multi-Runtime architecture, security model, observability (OTel/CloudWatch), BedrockAgentCoreApp vs FastAPI comparison
+- **Runtime Protocol Reference**: [`references/agentcore-runtime-protocols.md`](references/agentcore-runtime-protocols.md) - HTTP, MCP, A2A, AG-UI protocol specifications with container contracts, endpoint specs, and selection guide
+
+### Runnable Script Templates
+
+Production-ready templates in [`scripts/`](scripts/) for common deployment patterns:
+
+| Script | Protocol | Description |
+|--------|----------|-------------|
+| [`Dockerfile.runtime-template`](scripts/Dockerfile.runtime-template) | — | ARM64 multi-stage Docker build for AgentCore Runtime |
+| [`runtime-fastapi-template.py`](scripts/runtime-fastapi-template.py) | HTTP | FastAPI Runtime with SSE streaming, MCPClient, async task tracking |
+| [`mcp-server-template.py`](scripts/mcp-server-template.py) | MCP | MCP Server with Streamable HTTP transport |
+| [`a2a-server-template.py`](scripts/a2a-server-template.py) | A2A | A2A Server with Agent Card discovery |
+| [`agui-server-template.py`](scripts/agui-server-template.py) | AG-UI | AG-UI Server with CopilotKit-compatible event stream |
+| [`gateway-custom-resource-lambda.py`](scripts/gateway-custom-resource-lambda.py) | — | CDK Custom Resource Lambda for Gateway lifecycle |
+
 ## Cross-Service Resources
 
 For patterns and best practices that span multiple AgentCore services:
