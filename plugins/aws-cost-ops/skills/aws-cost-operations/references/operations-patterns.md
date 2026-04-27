@@ -39,7 +39,7 @@ Estimated cost: $X/month
 
 **When**: First week of every month
 
-**MCP Servers**: Cost Explorer MCP, Billing and Cost Management MCP
+**MCP Server**: AWS Billing and Cost Management MCP (`billing`) — covers Cost Explorer analysis, budget status, and Free Tier monitoring in one server
 
 **Steps**:
 1. Review total spending vs. budget
@@ -59,15 +59,15 @@ Estimated cost: $X/month
 
 **When**: Quarterly or when utilization alerts trigger
 
-**MCP Servers**: CloudWatch MCP, Cost Explorer MCP
+**MCP Servers**: AWS Billing and Cost Management MCP (`billing`) for Compute Optimizer right-sizing recommendations, CloudWatch MCP (`cw`) for utilization validation
 
 **Steps**:
-1. Query CloudWatch for resource utilization metrics
-2. Identify over-provisioned resources (< 40% utilization)
-3. Identify under-provisioned resources (> 80% utilization)
-4. Calculate potential savings from right-sizing
+1. Pull Compute Optimizer recommendations via the `billing` MCP (authoritative right-sizing source across EC2, Lambda, EBS, ECS, RDS, Auto Scaling groups)
+2. Cross-check against CloudWatch utilization metrics for the candidate resources
+3. Identify over-provisioned resources (< 40% utilization) and under-provisioned resources (> 80% utilization)
+4. Calculate potential savings from right-sizing (Compute Optimizer surfaces estimated savings directly)
 5. Plan and execute right-sizing changes
-6. Monitor post-change performance
+6. Monitor post-change performance via CloudWatch
 
 **Common Right-Sizing Scenarios**:
 - EC2 instances with low CPU utilization
@@ -79,7 +79,7 @@ Estimated cost: $X/month
 
 **When**: Monthly or triggered by cost anomalies
 
-**MCP Servers**: Cost Explorer MCP, CloudTrail MCP
+**MCP Servers**: AWS Billing and Cost Management MCP (`billing`) for cost attribution and Cost Optimization Hub idle-resource recommendations, CloudTrail MCP for last-touch activity
 
 **Steps**:
 1. Identify resources with zero usage
@@ -361,10 +361,10 @@ userIdentity.arn: *admin* OR *root*
 
 ### Workflow 3: Cost Spike Investigation
 
-**MCP Servers**: Cost Explorer MCP, CloudWatch MCP, CloudTrail MCP
+**MCP Servers**: AWS Billing and Cost Management MCP (`billing`), CloudWatch MCP (`cw`), CloudTrail MCP
 
 **Steps**:
-1. Use Cost Explorer to identify service causing spike
+1. Use the `billing` MCP (Cost Explorer + anomaly detection) to identify the service causing the spike
 2. Check CloudWatch metrics for usage increase
 3. Review CloudTrail for recent resource creation
 4. Identify root cause (misconfiguration, runaway process, attack)
@@ -387,7 +387,7 @@ userIdentity.arn: *admin* OR *root*
 
 ## Summary
 
-- **Cost Optimization**: Use Pricing, Cost Explorer, and Billing MCPs for proactive cost management
+- **Cost Optimization**: Use the `pricing` and `billing` MCPs for proactive cost management (pricing covers pre-deployment estimation; billing covers Cost Explorer, budgets, Free Tier, Cost Optimization Hub, and Compute Optimizer)
 - **Monitoring**: Set up comprehensive CloudWatch alarms for all critical services
 - **Observability**: Implement distributed tracing and structured logging
 - **Security**: Regular CloudTrail audits and Well-Architected assessments

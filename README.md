@@ -38,7 +38,7 @@ Cost optimization, monitoring, and operational excellence with 3 integrated MCP 
 
 **Integrated MCP Servers**:
 - AWS Pricing
-- AWS Cost Explorer
+- AWS Billing and Cost Management (Cost Explorer, Budgets, Free Tier, Cost Optimization Hub, Compute Optimizer, Savings Plans, S3 Storage Lens, Billing Conductor)
 - Amazon CloudWatch
 
 ### 3. AWS Serverless & Event-Driven Architecture Plugin

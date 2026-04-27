@@ -6,7 +6,7 @@ skills:
   - aws-mcp-setup
 allowed-tools:
   - mcp__pricing__*
-  - mcp__costexp__*
+  - mcp__billing__*
   - mcp__cw__*
   - mcp__aws-mcp__*
   - mcp__awsdocs__*
@@ -44,12 +44,19 @@ This plugin provides 3 MCP servers:
 - Calculate Total Cost of Ownership (TCO)
 - Evaluate different service options for cost efficiency
 
-#### 2. AWS Cost Explorer MCP Server (`costexp`)
-**Purpose**: Detailed cost analysis and reporting
-- Analyze historical spending patterns
-- Identify cost anomalies and trends
-- Forecast future costs
-- Analyze cost by service, region, or tag
+#### 2. AWS Billing and Cost Management MCP Server (`billing`)
+**Purpose**: Post-deployment cost analysis, budget tracking, and optimization recommendations. This is a consolidated server that replaces the retired `cost-explorer-mcp-server` and covers a broader surface area.
+- **Cost Explorer**: historical spending analysis, forecasting, anomaly detection, month-over-month comparisons, cost-and-usage breakdowns by service/region/tag
+- **AWS Budgets**: monitor budget status, track threshold breaches
+- **AWS Free Tier**: monitor Free Tier usage to avoid unexpected charges
+- **Cost Optimization Hub**: cross-service cost-saving recommendations
+- **Compute Optimizer**: right-sizing recommendations for EC2, Lambda, EBS, ECS, RDS, and Auto Scaling groups
+- **Savings Plans / Reserved Instances**: purchase recommendations, coverage, and utilization analysis
+- **S3 Storage Lens**: storage cost analysis via Athena (requires `STORAGE_LENS_MANIFEST_LOCATION` env var pointing at the Storage Lens manifest S3 URI; optional `STORAGE_LENS_OUTPUT_LOCATION` for Athena results)
+- **Pricing Calculator**: query saved workload estimates
+- **AWS Billing Conductor**: billing groups, proforma cost reports, account associations, custom line items, pricing rules
+
+> **IAM**: this server requires a broader permission set than the old `costexp` — notably `compute-optimizer:*`, `cost-optimization-hub:*`, `budgets:ViewBudget`, `freetier:GetFreeTierUsage`, and (for Storage Lens) Athena + S3 read/write on the results bucket. See the upstream README for the full IAM policy: https://github.com/awslabs/mcp/tree/main/src/billing-cost-management-mcp-server
 
 #### 3. Amazon CloudWatch MCP Server (`cw`)
 **Purpose**: Metrics, alarms, and logs analysis
@@ -59,7 +66,6 @@ This plugin provides 3 MCP servers:
 - Monitor resource utilization
 
 > **Note**: The following servers are available separately via the Full AWS MCP Server (see `aws-mcp-setup` skill) and are not bundled with this plugin:
-> - AWS Billing and Cost Management MCP — Real-time billing details
 > - CloudWatch Application Signals MCP — APM and SLOs
 > - AWS Managed Prometheus MCP — PromQL queries for containers
 > - AWS CloudTrail MCP — API activity audit
@@ -98,25 +104,25 @@ Use this skill when:
 ### Cost Analysis and Optimization
 
 **Regular cost reviews**:
-1. Use **Cost Explorer MCP** to analyze spending trends
+1. Use the **Billing and Cost Management MCP** (`billing`) to analyze spending trends and detect anomalies
 2. Identify cost anomalies and unexpected charges
 3. Review costs by service, region, and environment
 4. Compare actual vs. budgeted costs
-5. Generate cost optimization recommendations
+5. Pull cross-service recommendations from **Cost Optimization Hub** and right-sizing suggestions from **Compute Optimizer** (both exposed via the `billing` server)
 
 **Cost optimization strategies**:
-- Right-size over-provisioned resources
-- Use appropriate storage classes (S3, EBS)
+- Right-size over-provisioned resources (use Compute Optimizer recommendations via the `billing` server, then validate with CloudWatch utilization data)
+- Use appropriate storage classes (S3, EBS); for S3 at scale, query Storage Lens via the `billing` server to find lifecycle-policy opportunities
 - Implement auto-scaling for dynamic workloads
-- Leverage Savings Plans and Reserved Instances
+- Leverage Savings Plans and Reserved Instances — pull purchase recommendations and coverage/utilization from the `billing` server
 - Delete unused resources and snapshots
 - Use cost allocation tags effectively
 
 ### Budget Monitoring
 
 **Track spending against budgets**:
-1. Use **Billing and Cost Management MCP** to monitor budgets
-2. Set up budget alerts for threshold breaches
+1. Use the **`billing` MCP server** to monitor budget status and Free Tier usage
+2. Set up budget alerts for threshold breaches (configure the budget + SNS topic separately; the MCP exposes status only)
 3. Review budget utilization regularly
 4. Adjust budgets based on trends
 5. Implement cost controls and governance
@@ -199,10 +205,10 @@ Use this skill when:
 
 ### Cost Analysis Workflow
 
-1. **Pre-deployment**: Use Pricing MCP to estimate costs
-2. **Post-deployment**: Use Billing MCP to track actual spending
-3. **Analysis**: Use Cost Explorer MCP for detailed cost analysis
-4. **Optimization**: Implement recommendations from Cost Explorer
+1. **Pre-deployment**: Use the `pricing` MCP to estimate costs
+2. **Post-deployment**: Use the `billing` MCP to track actual spending, budgets, and Free Tier usage
+3. **Analysis**: Use the `billing` MCP for Cost Explorer breakdowns, forecasts, and anomaly detection
+4. **Optimization**: Act on Cost Optimization Hub and Compute Optimizer recommendations (both served by `billing`)
 
 ### Monitoring Workflow
 
